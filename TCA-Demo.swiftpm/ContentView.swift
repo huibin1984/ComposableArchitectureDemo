@@ -12,10 +12,10 @@ enum TodoAction: Equatable {
     case textFieldChanged(String)
 }
 
-struct todoEnvironment {
+struct TodoEnvironment {
 }
 
-let todoReducer = Reducer<Todo, TodoAction, todoEnvironment> { state, action, environment in
+let todoReducer = Reducer<Todo, TodoAction, TodoEnvironment> { state, action, environment in
     switch action {
     case .checkboxTapped:
         state.isComplete.toggle()
@@ -37,31 +37,30 @@ enum AppAction: Equatable {
 }
 
 struct AppEnvironment {
+    var mainQueue: AnySchedulerOf<DispatchQueue>
     var uuid: () -> UUID
 }
- 
+
 let appReducer = Reducer<AppState, AppAction, AppEnvironment>.combine(
     todoReducer.forEach(
         state: \AppState.todos,
         action: /AppAction.todo(index:action:),
-        environment: { _ in todoEnvironment() }
+        environment: { _ in TodoEnvironment() }
     ),
     Reducer { state, action, environment in
         switch action {
         case .addButtonTapped:
-            state.todos.insert(Todo(id: UUID()), at: 0)
+            state.todos.insert(Todo(id: environment.uuid()), at: 0)
             return .none
             
         case .todo(index: _, action: .checkboxTapped):
             struct CancelDelayID: Hashable {}
             return Effect(value: AppAction.todoDelayCompleted)
-                .delay(for: 1, scheduler: DispatchQueue.main)
-                .eraseToEffect()
-                .cancellable(id: CancelDelayID(), cancelInFlight: true)
+                .debounce(id: CancelDelayID(), for: 1, scheduler: environment.mainQueue)
             
         case .todo(index: let index, action: let action):
             return .none
-        
+            
         case .todoDelayCompleted:
             state.todos = state.todos.enumerated()
                 .sorted { lhs, rhs in
@@ -105,18 +104,18 @@ struct ContentView: View {
     
     var body: some View {
         NavigationView {
-          WithViewStore(store) { viewStore in
-            List {
-                ForEachStore(
-                    store.scope(state: \.todos, action: AppAction.todo(index:action:)),
-                    content: TodoView.init(store:)
-                )
+            WithViewStore(store) { viewStore in
+                List {
+                    ForEachStore(
+                        store.scope(state: \.todos, action: AppAction.todo(index:action:)),
+                        content: TodoView.init(store:)
+                    )
+                }
+                .navigationBarTitle("Todos")
+                .navigationBarItems(trailing: Button("Add", action: {
+                    viewStore.send(.addButtonTapped)
+                }))
             }
-            .navigationBarTitle("Todos")
-            .navigationBarItems(trailing: Button("Add", action: {
-                viewStore.send(.addButtonTapped)
-            }))
-          }
         }
     }
 }

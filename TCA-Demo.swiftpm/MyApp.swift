@@ -25,6 +25,7 @@ struct MyApp: App {
             let store = Store(initialState: initialState,
                               reducer: appReducer,
                               environment: AppEnvironment(
+                                mainQueue: DispatchQueue.main.eraseToAnyScheduler(),
                                 uuid: UUID.init
                               ))
             ContentView(store: store)
