@@ -24,7 +24,9 @@ struct MyApp: App {
             ])
             let store = Store(initialState: initialState,
                               reducer: appReducer,
-                              environment: AppEnvironment())
+                              environment: AppEnvironment(
+                                uuid: UUID.init
+                              ))
             ContentView(store: store)
         }
     }
